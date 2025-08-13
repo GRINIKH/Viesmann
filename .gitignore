@@ -1,0 +1,16 @@
+# Viessmann Projekt - Git Ignore
+*
+# WHITELIST - Explizit erlaubte Dateien (müssen VOR den Ignore-Regeln stehen)
+
+!main/
+!main/requirements.txt
+!main/shop_Viessmann_BD copy.py
+!main/shop_Viessmann_BD.bat
+!main/shop_Viessmann_BD.py
+!main/Viessmann_Anmelden_Auto_URL_Optim_Proxy_36GGGALL.py
+!main/Viessmann_Parsing_Negativ_V08.py
+!main/Viessmann_Parsing_V08.bat
+!main/Viessmann_Parsing_V08.py
+!BD/shop.viessmann_BD.csv
+!.gitignore
+!README.md

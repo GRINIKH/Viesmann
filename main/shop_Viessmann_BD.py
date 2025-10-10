@@ -1,20 +1,9 @@
 import pandas as pd
-from datetime import datetime, timedelta
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-import subprocess
-import csv
-import urllib3
-import certifi
+from datetime import datetime
 import logging
 import shutil
 from pathlib import Path
-from typing import List, Dict, Any
-import glob
+from typing import List
 
 # Konfiguration
 config = {
@@ -184,12 +173,48 @@ def verschiebe_verarbeitete_dateien(dateiliste: List[Path], archiv_ordner: Path)
             logging.error(f"Fehler beim Verschieben von {datei}: {e}")
 
 def read_csv_with_encoding(file_path: Path, **kwargs) -> pd.DataFrame:
-    encodings = ['utf-16', 'utf-8', 'latin1', 'cp1252', 'iso-8859-1']
+    """Liest CSV-Datei mit automatischer Encoding-Erkennung und BOM-Behandlung."""
+    encodings = ['utf-8-sig', 'utf-8', 'utf-16le', 'utf-16be', 'latin1', 'cp1252', 'iso-8859-1']
+    
     for encoding in encodings:
         try:
-            return pd.read_csv(file_path, encoding=encoding, **kwargs)
-        except UnicodeDecodeError:
+            # Spezielle Behandlung für UTF-16 ohne BOM
+            if encoding.startswith('utf-16'):
+                try:
+                    # Versuche mit BOM
+                    return pd.read_csv(file_path, encoding=encoding, **kwargs)
+                except UnicodeDecodeError:
+                    # Fallback: Versuche mit expliziter BOM-Behandlung
+                    with open(file_path, 'rb') as f:
+                        content = f.read()
+                        if content.startswith(b'\xff\xfe'):
+                            return pd.read_csv(file_path, encoding='utf-16le', **kwargs)
+                        elif content.startswith(b'\xfe\xff'):
+                            return pd.read_csv(file_path, encoding='utf-16be', **kwargs)
+                        else:
+                            # UTF-16 ohne BOM - versuche mit expliziter Angabe
+                            return pd.read_csv(file_path, encoding='utf-16', **kwargs)
+            else:
+                return pd.read_csv(file_path, encoding=encoding, **kwargs)
+        except (UnicodeDecodeError, UnicodeError, pd.errors.ParserError) as e:
+            logging.debug(f"Encoding {encoding} fehlgeschlagen für {file_path}: {e}")
             continue
+    
+    # Letzter Versuch: Versuche mit chardet für automatische Erkennung
+    try:
+        import chardet
+        with open(file_path, 'rb') as f:
+            raw_data = f.read()
+            result = chardet.detect(raw_data)
+            detected_encoding = result['encoding']
+            if detected_encoding:
+                logging.info(f"Automatisch erkanntes Encoding für {file_path}: {detected_encoding}")
+                return pd.read_csv(file_path, encoding=detected_encoding, **kwargs)
+    except ImportError:
+        logging.warning("chardet nicht verfügbar für automatische Encoding-Erkennung")
+    except Exception as e:
+        logging.debug(f"Automatische Encoding-Erkennung fehlgeschlagen: {e}")
+    
     raise ValueError(f"Konnte Datei {file_path} mit keinem der Encodings {encodings} lesen")
 
 def aktualisiere_und_sortiere_tagesdatei(tagesdatei_pfad: Path, haupt_db_pfad: Path, 
